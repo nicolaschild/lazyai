@@ -10,21 +10,21 @@ local function decode_streaming_json(str)
 		vim.notify("JSON decode failed: " .. tostring(result), vim.log.levels.DEBUG)
 		return nil
 	end
-	
+
 	-- Debug log the structure
 	vim.notify("Decoded JSON: " .. vim.inspect(result), vim.log.levels.DEBUG)
-	
+
 	-- More lenient validation
 	if not result.choices or not result.choices[1] then
 		vim.notify("Missing choices array", vim.log.levels.DEBUG)
 		return nil
 	end
-	
+
 	if not result.choices[1].delta then
 		vim.notify("Missing delta object", vim.log.levels.DEBUG)
 		return nil
 	end
-	
+
 	if not result.choices[1].delta.content then
 		vim.notify("Missing content", vim.log.levels.DEBUG)
 		return nil
@@ -45,36 +45,35 @@ local M = {
 -- Create a window helper function
 local function create_window(opts)
 	local buf = vim.api.nvim_create_buf(false, true)
-  
+
 	-- Remove non-window options before creating window
 	local win_opts = vim.tbl_extend("force", {}, opts)
 	win_opts.highlight = nil
 	win_opts.readonly = nil
 	win_opts.initial_text = nil
 	win_opts.spell = nil -- remove to avoid being passed to nvim_open_win
-  
+
 	local win = vim.api.nvim_open_win(buf, true, win_opts)
-  
+
 	-- Make sure buffer is modifiable before setting initial text
 	vim.bo[buf].modifiable = true
 	if opts.initial_text then
-	  vim.api.nvim_buf_set_lines(buf, 0, -1, false, { opts.initial_text })
-	  if opts.highlight then
-		vim.api.nvim_buf_add_highlight(buf, -1, opts.highlight, 0, 0, -1)
-	  end
+		vim.api.nvim_buf_set_lines(buf, 0, -1, false, { opts.initial_text })
+		if opts.highlight then
+			vim.api.nvim_buf_add_highlight(buf, -1, opts.highlight, 0, 0, -1)
+		end
 	end
-  
+
 	-- Final modifiable state
 	vim.bo[buf].modifiable = not opts.readonly
 
 	if opts.spell ~= nil then
-	  vim.api.nvim_buf_set_option(buf, "spell", opts.spell)
-	  vim.api.nvim_win_set_option(win, "spell", opts.spell)
+		vim.api.nvim_buf_set_option(buf, "spell", opts.spell)
+		vim.api.nvim_win_set_option(win, "spell", opts.spell)
 	end
-  
+
 	return buf, win
-  end
-  
+end
 
 function M.open()
 	local dims = {
@@ -282,18 +281,23 @@ function M.send_prompt()
 					end)
 					break
 				end
-				
+
 				-- Only try to decode if it's not [DONE]
 				vim.schedule(function()
 					local success, result = pcall(vim.fn.json_decode, json_str)
 					if not success then
 						return
 					end
-					
-					if not result.choices or not result.choices[1] or not result.choices[1].delta or not result.choices[1].delta.content then
+
+					if
+						not result.choices
+						or not result.choices[1]
+						or not result.choices[1].delta
+						or not result.choices[1].delta.content
+					then
 						return
 					end
-					
+
 					local content = result.choices[1].delta.content
 					local current = vim.api.nvim_buf_get_lines(M._windows.output.buf, -2, -1, false)
 					local new_lines = vim.split(content, "\n", { plain = true })
@@ -303,13 +307,7 @@ function M.send_prompt()
 						new_lines[1] = current[#current] .. new_lines[1]
 						vim.api.nvim_buf_set_lines(M._windows.output.buf, -2, -1, false, { new_lines[1] })
 						if #new_lines > 1 then
-							vim.api.nvim_buf_set_lines(
-								M._windows.output.buf,
-								-1,
-								-1,
-								false,
-								{ unpack(new_lines, 2) }
-							)
+							vim.api.nvim_buf_set_lines(M._windows.output.buf, -1, -1, false, { unpack(new_lines, 2) })
 						end
 					else
 						vim.api.nvim_buf_set_lines(M._windows.output.buf, 0, -1, false, new_lines)

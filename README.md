@@ -4,7 +4,6 @@ A powerful AI assistant plugin for your lazy-vim workflow.
 
 ## Upcoming Features
 
-- [ ] Better markdown support
 - [ ] Context window(s) and another buffer to select between chats
 - [ ] A CLI build with Golang
 
