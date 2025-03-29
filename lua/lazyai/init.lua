@@ -5,27 +5,32 @@ local config = require("lazyai.config")
 
 -- Simplified JSON decoder that only handles what we need
 local function decode_streaming_json(str)
-	local content = str:match('"content":"([^"]*)"')
-	if not content then
+	local success, result = pcall(vim.fn.json_decode, str)
+	if not success then
+		vim.notify("JSON decode failed: " .. tostring(result), vim.log.levels.DEBUG)
+		return nil
+	end
+	
+	-- Debug log the structure
+	vim.notify("Decoded JSON: " .. vim.inspect(result), vim.log.levels.DEBUG)
+	
+	-- More lenient validation
+	if not result.choices or not result.choices[1] then
+		vim.notify("Missing choices array", vim.log.levels.DEBUG)
+		return nil
+	end
+	
+	if not result.choices[1].delta then
+		vim.notify("Missing delta object", vim.log.levels.DEBUG)
+		return nil
+	end
+	
+	if not result.choices[1].delta.content then
+		vim.notify("Missing content", vim.log.levels.DEBUG)
 		return nil
 	end
 
-	-- Handle escape sequences
-	content = content:gsub("\\n", "\n")
-	content = content:gsub("\\t", "\t")
-	content = content:gsub("\\r", "\r")
-	content = content:gsub("\\\\", "\\")
-	content = content:gsub('\\"', '"')
-
-	return {
-		choices = {
-			{
-				delta = {
-					content = content,
-				},
-			},
-		},
-	}
+	return result
 end
 
 local M = {
@@ -268,38 +273,53 @@ function M.send_prompt()
 		for line in vim.gsplit(data, "\n") do
 			if line:match("^data: ") then
 				local json_str = line:sub(6)
-				if json_str ~= "[DONE]" then
-					local decoded = decode_streaming_json(json_str)
-					if decoded and decoded.choices[1].delta.content then
-						vim.schedule(function()
-							local content = decoded.choices[1].delta.content
-							local current = vim.api.nvim_buf_get_lines(M._windows.output.buf, -2, -1, false)
-							local new_lines = vim.split(content, "\n", { plain = true })
-							-- Make buffer modifiable before changes
-							vim.bo[M._windows.output.buf].modifiable = true
-							if #current > 0 then
-								new_lines[1] = current[#current] .. new_lines[1]
-								vim.api.nvim_buf_set_lines(M._windows.output.buf, -2, -1, false, { new_lines[1] })
-								if #new_lines > 1 then
-									vim.api.nvim_buf_set_lines(
-										M._windows.output.buf,
-										-1,
-										-1,
-										false,
-										{ unpack(new_lines, 2) }
-									)
-								end
-							else
-								vim.api.nvim_buf_set_lines(M._windows.output.buf, 0, -1, false, new_lines)
-							end
-							-- Make buffer non-modifiable after changes
-							vim.bo[M._windows.output.buf].modifiable = false
-							-- Ensure spell check remains disabled
-							vim.api.nvim_buf_set_option(M._windows.output.buf, "spell", false)
-							vim.api.nvim_win_set_option(M._windows.output.win, "spell", false)
-						end)
-					end
+				if json_str == "[DONE]" then
+					vim.schedule(function()
+						M.toggle_loading(false)
+						vim.bo[M._windows.status.buf].modifiable = true
+						vim.api.nvim_buf_set_lines(M._windows.status.buf, 0, -1, false, { "Status: Ready" })
+						vim.bo[M._windows.status.buf].modifiable = false
+					end)
+					break
 				end
+				
+				-- Only try to decode if it's not [DONE]
+				vim.schedule(function()
+					local success, result = pcall(vim.fn.json_decode, json_str)
+					if not success then
+						return
+					end
+					
+					if not result.choices or not result.choices[1] or not result.choices[1].delta or not result.choices[1].delta.content then
+						return
+					end
+					
+					local content = result.choices[1].delta.content
+					local current = vim.api.nvim_buf_get_lines(M._windows.output.buf, -2, -1, false)
+					local new_lines = vim.split(content, "\n", { plain = true })
+					-- Make buffer modifiable before changes
+					vim.bo[M._windows.output.buf].modifiable = true
+					if #current > 0 then
+						new_lines[1] = current[#current] .. new_lines[1]
+						vim.api.nvim_buf_set_lines(M._windows.output.buf, -2, -1, false, { new_lines[1] })
+						if #new_lines > 1 then
+							vim.api.nvim_buf_set_lines(
+								M._windows.output.buf,
+								-1,
+								-1,
+								false,
+								{ unpack(new_lines, 2) }
+							)
+						end
+					else
+						vim.api.nvim_buf_set_lines(M._windows.output.buf, 0, -1, false, new_lines)
+					end
+					-- Make buffer non-modifiable after changes
+					vim.bo[M._windows.output.buf].modifiable = false
+					-- Ensure spell check remains disabled
+					vim.api.nvim_buf_set_option(M._windows.output.buf, "spell", false)
+					vim.api.nvim_win_set_option(M._windows.output.win, "spell", false)
+				end)
 			end
 		end
 	end)
