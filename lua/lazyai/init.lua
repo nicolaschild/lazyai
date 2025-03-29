@@ -14,12 +14,13 @@ local function decode_streaming_json(str)
     choices = {
       {
         delta = {
-          content = content:gsub('\\(["\\nrt])', {
+          content = content:gsub('\\(["\\/nrt])', {
             n = "\n",
             r = "\r",
             t = "\t",
             ['"'] = '"',
             ["\\"] = "\\",
+            ["/"] = "/",
           }),
         },
       },

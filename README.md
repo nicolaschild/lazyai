@@ -2,12 +2,11 @@
 
 A powerful AI assistant plugin for your lazy-vim workflow.
 
-
 ## Upcoming Features
 
-1. Better markdown support
-2. Context window(s) and another buffer to select between chats
-3. A CLI build with Golang
+- [ ] Better markdown support
+- [ ] Context window(s) and another buffer to select between chats
+- [ ] A CLI build with Golang
 
 ## Buffer Features
 
@@ -18,7 +17,7 @@ A powerful AI assistant plugin for your lazy-vim workflow.
   - HTTP Streaming
 - Input buffer
   - Input buffer clear on first insert
-  
+
 ## Installation
 
 1. Create the following `lazyai.lua` file in your nvim plugins folder:
@@ -37,7 +36,8 @@ return {
     },
   },
 }
-```  
+```
+
 Or you can simply clone this repository and set it up yourself
 
 ## Configuration
