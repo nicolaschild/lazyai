@@ -14,11 +14,24 @@ A powerful AI assistant plugin for your lazy-vim workflow.
   
 ## Installation
 
-1. Clone this repository:
+1. Create the following `lazyai.lua` file in your nvim plugins folder:
 
-```bash
-git clone https://github.com/nicolaschild/lazyai.git
-```
+```lua
+return {
+  "nicolaschild/lazyai",
+  name = "lazyai",
+  keys = {
+    {
+      "<space>0",
+      function()
+        require("lazyai").open()
+      end,
+      desc = "Open LazyAi",
+    },
+  },
+}
+```  
+Or you can simply clone this repository and set it up yourself
 
 ## Configuration
 
