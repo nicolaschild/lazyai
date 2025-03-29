@@ -16,7 +16,7 @@ https://github.com/user-attachments/assets/0473ec5f-1a6b-40bd-98b9-cae57b55f4e6
 - Stream Status buffer
   - Loading animation when stream active
 - Readonly response buffer
-  - Partial markdown support
+  - Markdown support
   - HTTP Streaming
 - Input buffer
   - Input buffer clear on first insert
