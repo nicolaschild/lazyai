@@ -2,6 +2,13 @@
 
 A powerful AI assistant plugin for your lazy-vim workflow.
 
+
+## Upcoming Features
+
+1. Better markdown support
+2. Context window(s) and another buffer to select between chats
+3. A CLI build with Golang
+
 ## Buffer Features
 
 - Stream Status buffer
