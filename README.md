@@ -1,6 +1,8 @@
 # Lazy AI
 
-A powerful AI assistant plugin for your lazy-vim workflow.
+AI assistant plugin for your lazy-vim workflow.
+
+`Author`: Nicolas Child
 
 https://github.com/user-attachments/assets/0473ec5f-1a6b-40bd-98b9-cae57b55f4e6
 
