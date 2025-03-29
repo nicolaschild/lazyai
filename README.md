@@ -66,8 +66,6 @@ set OPENAI_API_KEY=your-api-key-here
 2. Type your question or request
 3. Get AI-powered assistance instantly
 
-[video will go here]
-
 ## License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
