@@ -2,6 +2,8 @@
 
 A powerful AI assistant plugin for your lazy-vim workflow.
 
+https://github.com/user-attachments/assets/0473ec5f-1a6b-40bd-98b9-cae57b55f4e6
+
 ## Upcoming Features
 
 - [ ] Context window(s) and another buffer to select between chats
