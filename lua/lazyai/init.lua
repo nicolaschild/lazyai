@@ -3,34 +3,12 @@
 
 local config = require("lazyai.config")
 
--- Simplified JSON decoder that only handles what we need
-local function decode_streaming_json(str)
-	local success, result = pcall(vim.fn.json_decode, str)
-	if not success then
-		vim.notify("JSON decode failed: " .. tostring(result), vim.log.levels.DEBUG)
-		return nil
-	end
+-- Initialize conversation array
+local conversation = {}
 
-	-- Debug log the structure
-	vim.notify("Decoded JSON: " .. vim.inspect(result), vim.log.levels.DEBUG)
-
-	-- More lenient validation
-	if not result.choices or not result.choices[1] then
-		vim.notify("Missing choices array", vim.log.levels.DEBUG)
-		return nil
-	end
-
-	if not result.choices[1].delta then
-		vim.notify("Missing delta object", vim.log.levels.DEBUG)
-		return nil
-	end
-
-	if not result.choices[1].delta.content then
-		vim.notify("Missing content", vim.log.levels.DEBUG)
-		return nil
-	end
-
-	return result
+-- Function to add message to conversation
+local function addToConversation(role, message)
+	table.insert(conversation, {role = role, message = message})
 end
 
 local M = {
@@ -41,6 +19,45 @@ local M = {
 		index = 1,
 	},
 }
+
+-- Function to update output buffer with conversation history
+function M.update_output_buffer()
+	if not M._windows.output or not M._windows.output.buf then
+		return
+	end
+	
+	local formatted_lines = {}
+	for i, entry in ipairs(conversation) do
+		-- Add prefix for user messages
+		local prefix = entry.role == "user" and "> " or ""
+		
+		-- Split message into lines and format each line
+		local message_lines = vim.split(entry.message, "\n", { plain = true })
+		for _, line in ipairs(message_lines) do
+			table.insert(formatted_lines, prefix .. line)
+		end
+		
+		-- Add empty line after each message
+		table.insert(formatted_lines, "")
+		
+		-- Add extra empty line after each assistant message (which completes a chat pair)
+		if entry.role == "assistant" and i < #conversation then
+			table.insert(formatted_lines, "")
+		end
+	end
+	
+	-- Schedule the buffer update
+	vim.schedule(function()
+		-- Update output buffer
+		vim.bo[M._windows.output.buf].modifiable = true
+		vim.api.nvim_buf_set_lines(M._windows.output.buf, 0, -1, false, formatted_lines)
+		vim.bo[M._windows.output.buf].modifiable = false
+		
+		-- Ensure spell check remains disabled
+		vim.api.nvim_buf_set_option(M._windows.output.buf, "spell", false)
+		vim.api.nvim_win_set_option(M._windows.output.win, "spell", false)
+	end)
+end
 
 -- Create a window helper function
 local function create_window(opts)
@@ -209,6 +226,10 @@ function M.send_prompt()
 	local lines = vim.api.nvim_buf_get_lines(M._windows.input.buf, 0, -1, false)
 	local prompt = table.concat(lines, "\n")
 
+	-- Store user message in conversation
+	addToConversation("user", prompt)
+	M.update_output_buffer()
+
 	if not config.api_key or config.api_key == "" then
 		vim.notify("Missing API key in lazyai.config", vim.log.levels.ERROR)
 		return
@@ -220,7 +241,7 @@ function M.send_prompt()
 	vim.bo[M._windows.output.buf].modifiable = true
 	vim.api.nvim_buf_set_lines(M._windows.output.buf, 0, -1, false, {})
 	vim.bo[M._windows.output.buf].filetype = "markdown"
-	vim.bo[M._windows.output.buf].modifiable = false -- Set back to non-modifiable
+	vim.bo[M._windows.output.buf].modifiable = false
 
 	-- Call OpenAI API
 	local stdout = vim.loop.new_pipe(false)
@@ -257,9 +278,13 @@ function M.send_prompt()
 	end)
 
 	-- Handle response streaming
+	local full_response = ""
+	
 	stdout:read_start(function(err, data)
 		assert(not err, err)
 		if not data then
+			addToConversation("assistant", full_response)
+			M.update_output_buffer()
 			vim.schedule(function()
 				M.toggle_loading(false)
 				vim.bo[M._windows.status.buf].modifiable = true
@@ -273,6 +298,8 @@ function M.send_prompt()
 			if line:match("^data: ") then
 				local json_str = line:sub(6)
 				if json_str == "[DONE]" then
+					addToConversation("assistant", full_response)
+					M.update_output_buffer()
 					vim.schedule(function()
 						M.toggle_loading(false)
 						vim.bo[M._windows.status.buf].modifiable = true
@@ -282,7 +309,6 @@ function M.send_prompt()
 					break
 				end
 
-				-- Only try to decode if it's not [DONE]
 				vim.schedule(function()
 					local success, result = pcall(vim.fn.json_decode, json_str)
 					if not success then
@@ -299,21 +325,42 @@ function M.send_prompt()
 					end
 
 					local content = result.choices[1].delta.content
-					local current = vim.api.nvim_buf_get_lines(M._windows.output.buf, -2, -1, false)
-					local new_lines = vim.split(content, "\n", { plain = true })
-					-- Make buffer modifiable before changes
-					vim.bo[M._windows.output.buf].modifiable = true
-					if #current > 0 then
-						new_lines[1] = current[#current] .. new_lines[1]
-						vim.api.nvim_buf_set_lines(M._windows.output.buf, -2, -1, false, { new_lines[1] })
-						if #new_lines > 1 then
-							vim.api.nvim_buf_set_lines(M._windows.output.buf, -1, -1, false, { unpack(new_lines, 2) })
+					full_response = full_response .. content
+
+					-- Format all lines including the streaming response
+					local formatted_lines = {}
+					
+					-- Add existing conversation
+					for i, entry in ipairs(conversation) do
+						local prefix = entry.role == "user" and "> " or ""
+						local message_lines = vim.split(entry.message, "\n", { plain = true })
+						for _, msg_line in ipairs(message_lines) do
+							table.insert(formatted_lines, prefix .. msg_line)
 						end
-					else
-						vim.api.nvim_buf_set_lines(M._windows.output.buf, 0, -1, false, new_lines)
+						table.insert(formatted_lines, "")
+						
+						-- Add extra empty line after each assistant message (which completes a chat pair)
+						if entry.role == "assistant" and i < #conversation then
+							table.insert(formatted_lines, "")
+						end
 					end
-					-- Make buffer non-modifiable after changes
+
+					-- Add current streaming response
+					local stream_lines = vim.split(full_response, "\n", { plain = true })
+					for _, stream_line in ipairs(stream_lines) do
+						table.insert(formatted_lines, stream_line)
+					end
+
+					-- Ensure there's always a blank line at the end
+					if #formatted_lines > 0 and formatted_lines[#formatted_lines] ~= "" then
+						table.insert(formatted_lines, "")
+					end
+
+					-- Update buffer
+					vim.bo[M._windows.output.buf].modifiable = true
+					vim.api.nvim_buf_set_lines(M._windows.output.buf, 0, -1, false, formatted_lines)
 					vim.bo[M._windows.output.buf].modifiable = false
+
 					-- Ensure spell check remains disabled
 					vim.api.nvim_buf_set_option(M._windows.output.buf, "spell", false)
 					vim.api.nvim_win_set_option(M._windows.output.win, "spell", false)
