@@ -8,7 +8,7 @@ local conversation = {}
 
 -- Function to add message to conversation
 local function addToConversation(role, message)
-	table.insert(conversation, {role = role, message = message})
+	table.insert(conversation, { role = role, message = message })
 end
 
 local M = {
@@ -25,34 +25,28 @@ function M.update_output_buffer()
 	if not M._windows.output or not M._windows.output.buf then
 		return
 	end
-	
 	local formatted_lines = {}
 	for i, entry in ipairs(conversation) do
 		-- Add prefix for user messages
 		local prefix = entry.role == "user" and "> " or ""
-		
 		-- Split message into lines and format each line
 		local message_lines = vim.split(entry.message, "\n", { plain = true })
 		for _, line in ipairs(message_lines) do
 			table.insert(formatted_lines, prefix .. line)
 		end
-		
 		-- Add empty line after each message
 		table.insert(formatted_lines, "")
-		
 		-- Add extra empty line after each assistant message (which completes a chat pair)
 		if entry.role == "assistant" and i < #conversation then
 			table.insert(formatted_lines, "")
 		end
 	end
-	
 	-- Schedule the buffer update
 	vim.schedule(function()
 		-- Update output buffer
 		vim.bo[M._windows.output.buf].modifiable = true
 		vim.api.nvim_buf_set_lines(M._windows.output.buf, 0, -1, false, formatted_lines)
 		vim.bo[M._windows.output.buf].modifiable = false
-		
 		-- Ensure spell check remains disabled
 		vim.api.nvim_buf_set_option(M._windows.output.buf, "spell", false)
 		vim.api.nvim_win_set_option(M._windows.output.win, "spell", false)
@@ -229,7 +223,6 @@ function M.send_prompt()
 	-- Store user message in conversation
 	addToConversation("user", prompt)
 	M.update_output_buffer()
-
 	if not config.api_key or config.api_key == "" then
 		vim.notify("Missing API key in lazyai.config", vim.log.levels.ERROR)
 		return
@@ -279,7 +272,7 @@ function M.send_prompt()
 
 	-- Handle response streaming
 	local full_response = ""
-	
+
 	stdout:read_start(function(err, data)
 		assert(not err, err)
 		if not data then
@@ -329,7 +322,7 @@ function M.send_prompt()
 
 					-- Format all lines including the streaming response
 					local formatted_lines = {}
-					
+
 					-- Add existing conversation
 					for i, entry in ipairs(conversation) do
 						local prefix = entry.role == "user" and "> " or ""
@@ -338,7 +331,7 @@ function M.send_prompt()
 							table.insert(formatted_lines, prefix .. msg_line)
 						end
 						table.insert(formatted_lines, "")
-						
+
 						-- Add extra empty line after each assistant message (which completes a chat pair)
 						if entry.role == "assistant" and i < #conversation then
 							table.insert(formatted_lines, "")
